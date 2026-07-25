@@ -7,7 +7,7 @@ loop** — with **slow-down playback that preserves pitch**. Perfect for guitar
 and piano practice, music transcription, ear training, and language learning
 (shadowing).
 
-**▶️ Try it now: [loop-player-moqueet.netlify.app](https://loop-player-moqueet.netlify.app)** — no sign-up, no upload, 100% private.
+**▶️ Try it now: [loop-player-pro.netlify.app](https://loop-player-pro.netlify.app)** — no sign-up, no upload, 100% private.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -34,14 +34,25 @@ effect**.
 - **A–B looping** — drag the **A** (start) and **B** (end) handles on the
   waveform to define a loop region; playback repeats it seamlessly and always
   stays inside the loop.
+- **1-second precision nudges** — arrow buttons beside the **A** and **B**
+  readouts step each point by exactly one second, for loop points too tight to
+  hit by dragging. The <kbd>←</kbd> / <kbd>→</kbd> keys do the same when a loop
+  point is focused; hold <kbd>Shift</kbd> for 0.1s steps.
+- **Loop counter** — see how many times you've played the region; click the
+  tally to reset it. It also resets when you move a loop point or load a track.
+- **Restart** — one click sends the playhead back to **A**. Adjusting either
+  loop point does the same automatically, so the next thing you hear is the
+  region you just edited.
+- **Space to play/pause** — works anywhere on the page.
 - **Real waveform view** — the track is decoded and rendered with a
   highlighted loop region, live playhead, and a time ruler.
 - **Slow down music without changing pitch (0.25×–4×)** — fine-tune with the
-  slider or pick a preset from the speed dropdown. Pitch is preserved, so
-  slowed-down audio still sounds in tune.
+  slider or pick any quarter step (0.25×, 0.5× … 2.25×, 2.5×, 2.75×, 3× … 4×)
+  from the speed dropdown. Pitch is preserved, so slowed-down audio still
+  sounds in tune.
 - **Remembers your last track** — reload the page and your song, loop points,
-  speed, and volume come right back (stored locally in your browser via
-  IndexedDB — nothing is uploaded).
+  speed, and volume come right back (the file is cached in IndexedDB and the
+  A/B points and settings in localStorage — nothing is uploaded).
 - **Volume control with mute** — dedicated volume slider and one-click
   mute/unmute.
 - **Track details at a glance** — format badge, average bitrate, and duration
@@ -49,6 +60,7 @@ effect**.
 - **Live audio visualizer** — animated frequency bars driven by the Web Audio
   API.
 - **Click-to-seek** — click anywhere on the waveform to jump.
+- **Reset** — widen the loop back out to the full track in one click.
 - **Light & dark theme** — follows your device setting by default, with a
   manual toggle that's remembered across visits.
 - **100% client-side & private** — no uploads, no backend, no account. Your
@@ -156,7 +168,7 @@ slow-downs.
 
 ## Author
 
-Developed by **AbdulMoqueet**.
+Developed by **[AbdulMoqueet](https://abdul-moqueet.vercel.app)**.
 
 ## Support / Donate ☕
 

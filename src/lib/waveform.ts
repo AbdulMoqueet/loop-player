@@ -50,3 +50,13 @@ export function formatTime(seconds: number): string {
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${ss}`;
   return `${m}:${ss}`;
 }
+
+/**
+ * Format seconds as m:ss.d — the extra tenth makes 1-second nudges of the
+ * loop points visible even when the handles were dragged to a fraction.
+ */
+export function formatTimePrecise(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+  const tenths = Math.floor((seconds % 1) * 10);
+  return `${formatTime(seconds)}.${tenths}`;
+}

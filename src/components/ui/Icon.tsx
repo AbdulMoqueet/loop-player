@@ -2,6 +2,8 @@ import type { LucideIcon } from 'lucide-react';
 import {
   AudioLines,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Moon,
   Music,
@@ -10,6 +12,7 @@ import {
   Play,
   Repeat2,
   RotateCcw,
+  SkipBack,
   Sun,
   Upload,
   Volume2,
@@ -26,6 +29,9 @@ export type IconName =
   | 'music'
   | 'loop'
   | 'reset'
+  | 'restart'
+  | 'nudge-back'
+  | 'nudge-fwd'
   | 'gauge'
   | 'pencil'
   | 'volume'
@@ -44,6 +50,9 @@ const ICONS: Record<IconName, LucideIcon> = {
   music: Music,
   loop: Repeat2,
   reset: RotateCcw,
+  restart: SkipBack,
+  'nudge-back': ChevronLeft,
+  'nudge-fwd': ChevronRight,
   gauge: AudioLines,
   pencil: Pencil,
   volume: Volume2,

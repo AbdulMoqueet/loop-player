@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent,
   type PointerEvent,
 } from 'react';
 import { formatTime, type Peaks } from '../lib/waveform';
@@ -17,9 +18,13 @@ interface WaveformProps {
   onSeek: (time: number) => void;
   onChangeA: (time: number) => void;
   onChangeB: (time: number) => void;
+  /** Fired when a handle drag ends, so the playhead can settle back on A. */
+  onCommit: () => void;
 }
 
-const MIN_GAP = 0.2; // seconds between A and B
+/** Seconds moved per arrow key press on a focused A/B handle. */
+const KEY_STEP = 1;
+const KEY_STEP_FINE = 0.1;
 
 /** Pick a tick interval so ruler labels never crowd at the current width. */
 function timeTicks(duration: number, width: number): number[] {
@@ -47,6 +52,7 @@ export function Waveform({
   onSeek,
   onChangeA,
   onChangeB,
+  onCommit,
 }: WaveformProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -143,15 +149,34 @@ export function Waveform({
     const which = dragRef.current;
     if (!which) return;
     const t = timeFromEvent(e.clientX);
-    if (which === 'A') onChangeA(Math.min(t, pointB - MIN_GAP));
-    else onChangeB(Math.max(t, pointA + MIN_GAP));
+    // The engine clamps A/B against each other, so pass the raw time.
+    if (which === 'A') onChangeA(t);
+    else onChangeB(t);
   };
 
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
     if (dragRef.current) {
       (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
       dragRef.current = null;
+      onCommit();
     }
+  };
+
+  /** Arrow keys step a focused handle: 1s, or 0.1s with Shift. */
+  const onHandleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const which = e.currentTarget.dataset.handle as 'A' | 'B';
+    const from = which === 'A' ? pointA : pointB;
+    const apply = which === 'A' ? onChangeA : onChangeB;
+    let next: number;
+    if (e.key === 'ArrowLeft') next = from - (e.shiftKey ? KEY_STEP_FINE : KEY_STEP);
+    else if (e.key === 'ArrowRight') next = from + (e.shiftKey ? KEY_STEP_FINE : KEY_STEP);
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = duration;
+    else return;
+    e.preventDefault();
+    e.stopPropagation(); // don't let Home/End scroll the page
+    apply(next);
+    onCommit();
   };
 
   const onTrackClick = (e: PointerEvent<HTMLDivElement>) => {
@@ -188,9 +213,13 @@ export function Waveform({
           style={{ left: `${pct(pointA)}%` }}
           data-handle="A"
           onPointerDown={onHandleDown}
+          onKeyDown={onHandleKeyDown}
           role="slider"
           aria-label="Loop start (A)"
+          aria-valuemin={0}
+          aria-valuemax={duration}
           aria-valuenow={Math.round(pointA)}
+          aria-valuetext={formatTime(pointA)}
           tabIndex={0}
         >
           <span className="waveform__flag">A</span>
@@ -200,9 +229,13 @@ export function Waveform({
           style={{ left: `${pct(pointB)}%` }}
           data-handle="B"
           onPointerDown={onHandleDown}
+          onKeyDown={onHandleKeyDown}
           role="slider"
           aria-label="Loop end (B)"
+          aria-valuemin={0}
+          aria-valuemax={duration}
           aria-valuenow={Math.round(pointB)}
+          aria-valuetext={formatTime(pointB)}
           tabIndex={0}
         >
           <span className="waveform__flag">B</span>

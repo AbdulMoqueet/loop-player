@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useEffect } from 'react';
 import './App.css';
 import './components/ui/ui.css';
 import { useAudioEngine } from './hooks/useAudioEngine';
@@ -24,23 +24,42 @@ function App() {
     muted,
     pointA,
     pointB,
+    loopCount,
     loading,
     error,
     analyser,
     loadFile,
     toggle,
     seek,
+    restart,
     setSpeed,
     setVolume,
     toggleMute,
     setPointA,
     setPointB,
+    resetLoop,
+    resetLoopCount,
   } = engine;
 
-  const resetLoop = useCallback(() => {
-    setPointA(0);
-    setPointB(duration);
-  }, [duration, setPointA, setPointB]);
+  // Space toggles playback from anywhere on the page. Controls keep their own
+  // space behaviour (activating the focused button, opening the select).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target;
+      if (
+        el instanceof HTMLElement &&
+        el.closest('button, a, input, select, textarea, [contenteditable="true"]')
+      ) {
+        return;
+      }
+      e.preventDefault(); // otherwise the page scrolls
+      toggle();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggle]);
+
 
   return (
     <div className="app">
@@ -119,6 +138,7 @@ function App() {
                 onSeek={seek}
                 onChangeA={setPointA}
                 onChangeB={setPointB}
+                onCommit={restart}
               />
             </>
           )}
@@ -132,12 +152,17 @@ function App() {
             muted={muted}
             pointA={pointA}
             pointB={pointB}
+            loopCount={loopCount}
             disabled={!track}
             onToggle={toggle}
             onSpeed={setSpeed}
             onVolume={setVolume}
             onToggleMute={toggleMute}
+            onChangeA={setPointA}
+            onChangeB={setPointB}
+            onRestart={restart}
             onResetLoop={resetLoop}
+            onResetCount={resetLoopCount}
           />
         </Card>
       </main>
@@ -145,12 +170,24 @@ function App() {
       <footer className="app__footer">
         {track && (
           <p className="app__hint">
-            Drag the <b>A</b> and <b>B</b> handles to set your loop.
+            Drag the <b>A</b> and <b>B</b> handles to set your loop, or nudge them by
+            1 second with the arrow buttons — or the{' '}
+            <kbd className="app__kbd">←</kbd> <kbd className="app__kbd">→</kbd> keys
+            once a point is focused (hold <kbd className="app__kbd">Shift</kbd> for
+            0.1s). Press <kbd className="app__kbd">Space</kbd> to play or pause.
           </p>
         )}
         <div className="app__credits">
           <span>
-            Developed by <strong>AbdulMoqueet</strong>
+            Developed by{' '}
+            <a
+              className="app__author"
+              href="https://abdul-moqueet.vercel.app"
+              target="_blank"
+              rel="noreferrer"
+            >
+              AbdulMoqueet
+            </a>
           </span>
           <span className="app__credits-sep">•</span>
           <span>Support / Donate:</span>

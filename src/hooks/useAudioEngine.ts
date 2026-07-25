@@ -11,6 +11,9 @@ import {
 const WAVEFORM_BUCKETS = 1400;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 
+/** Smallest allowed A→B region, in seconds. */
+export const MIN_LOOP_GAP = 0.2;
+
 export interface Track {
   name: string;
   url: string;
@@ -42,18 +45,38 @@ export function useAudioEngine() {
   const [speed, setSpeedState] = useState(1);
   const [volume, setVolumeState] = useState(1);
   const [muted, setMuted] = useState(false);
-  const [pointA, setPointA] = useState(0);
-  const [pointB, setPointB] = useState(0);
+  const [pointA, setPointAState] = useState(0);
+  const [pointB, setPointBState] = useState(0);
+  const [loopCount, setLoopCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Keep the loop bounds in refs so the rAF tick reads fresh values.
+  // Keep the loop bounds and duration in refs so the rAF tick and the loop
+  // editors read fresh values without re-creating callbacks.
   const aRef = useRef(0);
   const bRef = useRef(0);
+  const durRef = useRef(0);
+  /** Value of A the playhead was last sent back to; -1 means "not anchored". */
+  const anchorRef = useRef(-1);
+  const loopCountRef = useRef(0);
+
+  // Completed passes are counted off the rAF tick and the 'ended' handler, so
+  // the running total lives in a ref and is mirrored into state for rendering.
+  const countLoop = useCallback(() => {
+    loopCountRef.current += 1;
+    setLoopCount(loopCountRef.current);
+  }, []);
+
+  /** Editing the region starts a new practice run, so the tally goes back to 0. */
+  const resetLoopCount = useCallback(() => {
+    loopCountRef.current = 0;
+    setLoopCount(0);
+  }, []);
   useEffect(() => {
     aRef.current = pointA;
     bRef.current = pointB;
-  }, [pointA, pointB]);
+    durRef.current = duration;
+  }, [pointA, pointB, duration]);
 
   // Create the <audio> element and audio graph once.
   useEffect(() => {
@@ -63,7 +86,21 @@ export function useAudioEngine() {
     audioRef.current = audio;
 
     const onLoaded = () => setDuration(audio.duration || 0);
-    const onEnded = () => setIsPlaying(false);
+    // With B at the very end of the track, 'ended' fires before the tick can
+    // wrap the playhead — so close the loop here instead of stopping.
+    const onEnded = () => {
+      const a = aRef.current;
+      if (bRef.current > a) {
+        // The tick can wrap the playhead in the same frame the element ends;
+        // if it already did, this pass has been counted.
+        if (Math.abs(audio.currentTime - a) > 0.05) countLoop();
+        audio.currentTime = a;
+        anchorRef.current = a;
+        void audio.play().catch(() => {});
+        return;
+      }
+      setIsPlaying(false);
+    };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     audio.addEventListener('loadedmetadata', onLoaded);
@@ -79,7 +116,7 @@ export function useAudioEngine() {
       audio.removeEventListener('pause', onPause);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+  }, [countLoop]);
 
   // Lazily build the Web Audio graph (needs a user gesture to start).
   const ensureGraph = useCallback(() => {
@@ -111,7 +148,11 @@ export function useAudioEngine() {
         // or landing before A (seek, handle drag) jumps back to A. Paused
         // scrubbing stays free so the user can preview anywhere.
         if (!audio.paused && b > a && (t >= b || t < a)) {
+          // Reaching B is a completed pass; landing before A is a seek or a
+          // handle drag, which shouldn't inflate the tally.
+          if (t >= b) countLoop();
           audio.currentTime = a;
+          anchorRef.current = a;
           setCurrentTime(a);
         } else {
           setCurrentTime(t);
@@ -123,7 +164,7 @@ export function useAudioEngine() {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, []);
+  }, [countLoop]);
 
   const loadFileCore = useCallback(async (file: File, restoring: boolean) => {
     setError(null);
@@ -166,14 +207,19 @@ export function useAudioEngine() {
       setDuration(dur);
       setCurrentTime(0);
       setIsPlaying(false);
+      anchorRef.current = -1;
+      resetLoopCount();
 
       // Restore the previous session's loop/speed/volume for this track, or
-      // default the loop to the whole track.
-      const saved = restoring ? loadSession() : null;
+      // default the loop to the whole track. The name check means this applies
+      // whether the file came back from IndexedDB or the user re-picked it.
+      const saved = loadSession();
       if (saved && saved.name === file.name && saved.pointB > saved.pointA) {
         const clamp = (v: number) => Math.max(0, Math.min(dur, v));
-        setPointA(clamp(saved.pointA));
-        setPointB(clamp(saved.pointB));
+        setPointAState(clamp(saved.pointA));
+        setPointBState(clamp(saved.pointB));
+        aRef.current = clamp(saved.pointA);
+        bRef.current = clamp(saved.pointB);
         setSpeedState(saved.speed);
         setVolumeState(saved.volume);
         setMuted(saved.muted);
@@ -185,9 +231,12 @@ export function useAudioEngine() {
         audio.currentTime = clamp(saved.pointA);
         setCurrentTime(clamp(saved.pointA));
       } else {
-        setPointA(0);
-        setPointB(dur);
+        setPointAState(0);
+        setPointBState(dur);
+        aRef.current = 0;
+        bRef.current = dur;
       }
+      durRef.current = dur;
 
       // Remember a freshly picked file so a reload brings it back.
       if (!restoring) void saveLastFile(file).catch(() => {});
@@ -201,7 +250,7 @@ export function useAudioEngine() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [resetLoopCount]);
 
   const loadFile = useCallback(
     (file: File) => loadFileCore(file, false),
@@ -262,6 +311,66 @@ export function useAudioEngine() {
     setCurrentTime(clamped);
   }, []);
 
+  /**
+   * Send the playhead back to A. `force` is for explicit user actions; the
+   * unforced form is used while a handle is being dragged, where it fires on
+   * every pointer move and each redundant seek would restart decoding and
+   * stutter the audio.
+   */
+  const jumpToA = useCallback((force: boolean) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const a = aRef.current;
+    if (!force && anchorRef.current === a) {
+      const t = audio.currentTime;
+      // Already parked at A (paused) or running inside the region: leave it be.
+      if (audio.paused ? Math.abs(t - a) < 0.01 : t >= a && t < bRef.current) return;
+    }
+    anchorRef.current = a;
+    audio.currentTime = a;
+    setCurrentTime(a);
+  }, []);
+
+  const restart = useCallback(() => jumpToA(true), [jumpToA]);
+
+  // Moving either handle re-arms the loop from A, so the next thing you hear
+  // is always the region you just edited.
+  const setPointA = useCallback(
+    (time: number) => {
+      const next = Math.max(0, Math.min(time, bRef.current - MIN_LOOP_GAP));
+      if (next === aRef.current) return;
+      aRef.current = next;
+      setPointAState(next);
+      resetLoopCount();
+      jumpToA(false);
+    },
+    [jumpToA, resetLoopCount],
+  );
+
+  const setPointB = useCallback(
+    (time: number) => {
+      const max = durRef.current || audioRef.current?.duration || time;
+      const next = Math.max(aRef.current + MIN_LOOP_GAP, Math.min(time, max));
+      if (next === bRef.current) return;
+      bRef.current = next;
+      setPointBState(next);
+      resetLoopCount();
+      jumpToA(false);
+    },
+    [jumpToA, resetLoopCount],
+  );
+
+  /** Widen the loop back out to the whole track. */
+  const resetLoop = useCallback(() => {
+    const dur = durRef.current || audioRef.current?.duration || 0;
+    aRef.current = 0;
+    bRef.current = dur;
+    setPointAState(0);
+    setPointBState(dur);
+    resetLoopCount();
+    restart();
+  }, [restart, resetLoopCount]);
+
   const setVolume = useCallback((value: number) => {
     const clamped = Math.max(0, Math.min(1, value));
     setVolumeState(clamped);
@@ -303,6 +412,7 @@ export function useAudioEngine() {
     muted,
     pointA,
     pointB,
+    loopCount,
     loading,
     error,
     analyser: analyserRef,
@@ -311,11 +421,14 @@ export function useAudioEngine() {
     pause,
     toggle,
     seek,
+    restart,
     setSpeed,
     setVolume,
     toggleMute,
     setPointA,
     setPointB,
+    resetLoop,
+    resetLoopCount,
   };
 }
 

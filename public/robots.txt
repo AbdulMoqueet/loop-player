@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://loop-player-moqueet.netlify.app/sitemap.xml
+Sitemap: https://loop-player-pro.netlify.app/sitemap.xml
