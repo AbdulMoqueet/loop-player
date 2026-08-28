@@ -488,6 +488,37 @@
   font-weight: 600;
   color: var(--text);
 }
+.loop-point__input-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.loop-point__input {
+  width: 22px;
+  padding: 2px 1px;
+  border: none;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  outline: none;
+}
+.loop-point__input:focus {
+  background: var(--surface-h);
+  border-radius: 4px;
+}
+.loop-point__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.loop-point__sep {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+}
 /* The arrows sit inside a pill, so they run smaller than a standalone sm button. */
 .loop-point .ui-iconbtn--sm {
   width: 26px;

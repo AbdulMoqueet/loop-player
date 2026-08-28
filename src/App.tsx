@@ -43,22 +43,44 @@ function App() {
 
   // Space toggles playback from anywhere on the page. Controls keep their own
   // space behaviour (activating the focused button, opening the select).
+  // Left/Right arrows move the playhead by 1 second (0.1s with Shift).
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || e.metaKey || e.ctrlKey || e.altKey) return;
-      const el = e.target;
-      if (
-        el instanceof HTMLElement &&
-        el.closest('button, a, input, select, textarea, [contenteditable="true"]')
-      ) {
+      // Space to toggle play/pause
+      if (e.code === 'Space' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const el = e.target;
+        if (
+          el instanceof HTMLElement &&
+          el.closest('button, a, input, select, textarea, [contenteditable="true"]')
+        ) {
+          return;
+        }
+        e.preventDefault(); // otherwise the page scrolls
+        toggle();
         return;
       }
-      e.preventDefault(); // otherwise the page scrolls
-      toggle();
+      
+      // Left/Right arrows to seek the playhead
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const el = e.target;
+        // Don't interfere if user is focused on an input, slider, or A/B handle
+        if (
+          el instanceof HTMLElement &&
+          el.closest('input, select, textarea, [contenteditable="true"], [role="slider"]')
+        ) {
+          return;
+        }
+        e.preventDefault();
+        const step = e.shiftKey ? 0.1 : 1;
+        const dir = e.key === 'ArrowLeft' ? -1 : 1;
+        const nextTime = Math.max(0, Math.min(currentTime + dir * step, duration));
+        seek(nextTime);
+        return;
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggle]);
+  }, [toggle, seek, currentTime, duration]);
 
 
   return (

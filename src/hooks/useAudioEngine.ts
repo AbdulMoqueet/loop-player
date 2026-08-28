@@ -103,10 +103,27 @@ export function useAudioEngine() {
     };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
+    
+    // Backup loop enforcement for background tabs where rAF stops firing.
+    // This ensures the A→B loop works even when the tab is not focused.
+    const onTimeUpdate = () => {
+      const a = aRef.current;
+      const b = bRef.current;
+      const t = audio.currentTime;
+      // Only enforce loop when playing and we have a valid loop region
+      if (!audio.paused && b > a && t >= b) {
+        countLoop();
+        audio.currentTime = a;
+        anchorRef.current = a;
+        setCurrentTime(a);
+      }
+    };
+    
     audio.addEventListener('loadedmetadata', onLoaded);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
+    audio.addEventListener('timeupdate', onTimeUpdate);
 
     return () => {
       audio.pause();
@@ -114,6 +131,7 @@ export function useAudioEngine() {
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('play', onPlay);
       audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [countLoop]);

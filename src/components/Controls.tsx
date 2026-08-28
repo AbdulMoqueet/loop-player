@@ -1,5 +1,5 @@
-import type { KeyboardEvent } from 'react';
-import { formatTime, formatTimePrecise } from '../lib/waveform';
+import { useCallback, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { formatTime } from '../lib/waveform';
 import { MIN_LOOP_GAP } from '../hooks/useAudioEngine';
 import { Button, Icon, IconButton, Slider } from './ui';
 
@@ -36,6 +36,107 @@ const NUDGE = 1;
 /** Finer step for Shift + arrow key. */
 const NUDGE_FINE = 0.1;
 
+/** Convert seconds to hours, minutes, seconds */
+function secondsToHMS(seconds: number): { h: number; m: number; s: number } {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return { h, m, s };
+}
+
+/** Convert hours, minutes, seconds to total seconds */
+function hmsToSeconds(h: number, m: number, s: number): number {
+  return h * 3600 + m * 60 + s;
+}
+
+/** Pad a number with leading zeros */
+function pad2(n: number): string {
+  return n.toString().padStart(2, '0');
+}
+
+interface TimeInputProps {
+  hours: number;
+  minutes: number;
+  seconds: number;
+  disabled: boolean;
+  onCommit: (h: number, m: number, s: number) => void;
+}
+
+/** Three separate number inputs for HH:MM:SS */
+function TimeInput({ hours, minutes, seconds, disabled, onCommit }: TimeInputProps) {
+  const [h, setH] = useState(pad2(hours));
+  const [m, setM] = useState(pad2(minutes));
+  const [s, setS] = useState(pad2(seconds));
+
+  // Sync internal state when props change (e.g., from dragging handles)
+  const onBlur = useCallback(() => {
+    const hVal = Math.max(0, parseInt(h) || 0);
+    const mVal = Math.min(59, Math.max(0, parseInt(m) || 0));
+    const sVal = Math.min(59, Math.max(0, parseInt(s) || 0));
+    setH(pad2(hVal));
+    setM(pad2(mVal));
+    setS(pad2(sVal));
+    onCommit(hVal, mVal, sVal);
+  }, [h, m, s, onCommit]);
+
+  const onKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+    }
+  }, []);
+
+  const handleChange = useCallback((setter: (v: string) => void, max: number) => 
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value.replace(/[^0-9]/g, '');
+      if (val === '' || parseInt(val) <= max) {
+        setter(val);
+      }
+    }, []);
+
+  return (
+    <div className="loop-point__input-group">
+      <input
+        type="text"
+        inputMode="numeric"
+        className="loop-point__input"
+        value={h}
+        onChange={handleChange(setH, 99)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        aria-label="Hours"
+        maxLength={2}
+      />
+      <span className="loop-point__sep">:</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="loop-point__input"
+        value={m}
+        onChange={handleChange(setM, 59)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        aria-label="Minutes"
+        maxLength={2}
+      />
+      <span className="loop-point__sep">:</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="loop-point__input"
+        value={s}
+        onChange={handleChange(setS, 59)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+        disabled={disabled}
+        aria-label="Seconds"
+        maxLength={2}
+      />
+    </div>
+  );
+}
+
 interface LoopPointProps {
   name: 'A' | 'B';
   time: number;
@@ -48,6 +149,8 @@ interface LoopPointProps {
 
 /** One loop bound with ◂ / ▸ arrows that step it by exactly one second. */
 function LoopPoint({ name, time, disabled, min, max, onChange }: LoopPointProps) {
+  const { h, m, s } = secondsToHMS(time);
+
   // Keydown on the wrapper also catches arrows bubbling from the focused nudge
   // buttons, so you can click one and then keep stepping from the keyboard.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -58,6 +161,13 @@ function LoopPoint({ name, time, disabled, min, max, onChange }: LoopPointProps)
     e.stopPropagation();
     onChange(time + dir * (e.shiftKey ? NUDGE_FINE : NUDGE));
   };
+
+  const handleTimeCommit = useCallback((hours: number, minutes: number, seconds: number) => {
+    const totalSeconds = hmsToSeconds(hours, minutes, seconds);
+    // Clamp to valid range
+    const clamped = Math.max(min, Math.min(max, totalSeconds));
+    onChange(clamped);
+  }, [min, max, onChange]);
 
   return (
     <div
@@ -73,7 +183,13 @@ function LoopPoint({ name, time, disabled, min, max, onChange }: LoopPointProps)
         onClick={() => onChange(time - NUDGE)}
         disabled={disabled || time <= min}
       />
-      <span className="loop-point__time">{formatTimePrecise(time)}</span>
+      <TimeInput
+        hours={h}
+        minutes={m}
+        seconds={s}
+        disabled={disabled}
+        onCommit={handleTimeCommit}
+      />
       <IconButton
         icon="nudge-fwd"
         label={`Move ${name} forward 1 second`}
