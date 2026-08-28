@@ -7,7 +7,7 @@ loop** — with **slow-down playback that preserves pitch**. Perfect for guitar
 and piano practice, music transcription, ear training, and language learning
 (shadowing).
 
-**▶️ Try it now: [loop-player-pro.netlify.app](https://loop-player-pro.netlify.app)** — no sign-up, no upload, 100% private.
+**▶️ Try it now: [Loop-Player](https://loop-player-theta.vercel.app)** — no sign-up, no upload, 100% private.
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
